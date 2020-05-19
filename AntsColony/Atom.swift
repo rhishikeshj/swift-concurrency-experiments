@@ -8,7 +8,7 @@
 
 import Foundation
 
-class Atom<T: Equatable> {
+class Atom<T: Hashable> : Hashable {
     var value: T
     private let lock: UnsafeMutablePointer<pthread_mutex_t>
 
@@ -19,7 +19,7 @@ class Atom<T: Equatable> {
         pthread_mutex_init(lock, nil)
     }
 
-    public func swap(usingFn fn: (T) -> T) {
+    public func swap(usingFn fn: (T) -> T) -> T {
         // capture the current value
         let v1 = value
         // run fn to update the value
@@ -30,14 +30,24 @@ class Atom<T: Equatable> {
         if v1 != value {
             // unlock and try again
             pthread_mutex_unlock(lock)
-            swap(usingFn: fn)
+            return swap(usingFn: fn)
         } else {
             value = v2
             pthread_mutex_unlock(lock)
         }
+        return value
     }
 
     public func deref() -> T {
         return value
+    }
+    
+    static func == (lhs: Atom<T>, rhs: Atom<T>) -> Bool {
+        lhs.deref() == rhs.deref()
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(value)
+        hasher.combine(lock)
     }
 }

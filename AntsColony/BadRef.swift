@@ -8,11 +8,10 @@
 
 import Foundation
 
-class Ref<A: Equatable> {
+class BadRef<A: Equatable> {
     private var val: A?
     private let lock: UnsafeMutablePointer<pthread_mutex_t>
 
-    /// Creates a new empty `MVar`.
     public init() {
         val = .none
         lock = UnsafeMutablePointer.allocate(capacity: MemoryLayout<pthread_mutex_t>.size)
@@ -28,7 +27,6 @@ class Ref<A: Equatable> {
 
     private func put(_ x: A) {
         val = x
-        return ()
     }
 
     public func deref() -> A {
@@ -69,7 +67,7 @@ func assoc(_ map: [String: Int], key: String, value: Int) -> [String: Int] {
 
 func multiThreadAccess(_ count: Int) {
     let initialValue: [String: Int] = [:]
-    let place = Ref(initial: initialValue)
+    let place = BadRef(initial: initialValue)
 
     // this emulates multi thread access with contention.
     for i in 1 ... count {
@@ -92,7 +90,7 @@ func multiThreadAccess(_ count: Int) {
 
 func singleThreadAccess(_ count: Int) {
     let initialValue: [String: Int] = [:]
-    let place = Ref(initial: initialValue)
+    let place = BadRef(initial: initialValue)
     // this is single thread access, no contention or retries.
     DispatchQueue.global(qos: .userInteractive).async {
         for i in 1 ... count {

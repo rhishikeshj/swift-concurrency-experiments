@@ -92,17 +92,16 @@ class AntsColonyTests: XCTestCase {
     func testAtoms() {
         let counter = Atom<Int>(withValue: 0)
 
-        for _ in 0 ..< 1000 {
-            DispatchQueue.global().async {
-                Thread.sleep(forTimeInterval: TimeInterval(Float.random(in: 0 ... 0.5)))
-                counter.swap { old in
-                    old + 1
+        for _ in 0 ..< 20 {
+            Thread {
+                for _ in 0 ..< 400 {
+                    counter.swap { old in old + 1 }
                 }
-            }
+            }.start()
         }
 
-        Thread.sleep(forTimeInterval: 5)
-        XCTAssert(counter.deref() == 1000)
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertEqual(counter.deref(), 8000)
     }
 
     func testAgents() {
@@ -127,6 +126,74 @@ class AntsColonyTests: XCTestCase {
             x + y.deref()
         }
 
-        XCTAssert(sum == 499999500000)
+        XCTAssert(sum == 499_999_500_000)
+    }
+
+    func testDispatchGroups() {
+        let mygroup = DispatchGroup()
+        let globalDefault = DispatchQueue.global()
+
+        for i in 0 ..< 5 {
+            globalDefault.async(group: mygroup) {
+                sleep(UInt32(i))
+                print("Group async on globalDefault:" + String(i))
+            }
+        }
+        print("Waiting for completion...")
+        // this is the last job to execute in the group
+        mygroup.notify(queue: globalDefault) {
+            print("Notify received, done waiting.")
+        }
+        // this is for blocking wait for all other previously submitted
+        // jobs in this group
+        mygroup.wait()
+        print("Done waiting.")
+    }
+
+    func testNewTransactions() {
+        runTransactions()
+    }
+
+    func testSTMTransactions() {
+        runSTMTransactions()
+    }
+    
+    func testWrittenRefs () {
+        Transaction.initialize()
+        
+        let writtenRefs: Atom<Set<Ref>>? = Atom(withValue: Set())
+
+        let count = 10
+        var accounts: [Ref] = []
+
+        let ref1 = Ref(with: BankAccount(name: "Rhi-1", balance: 100))
+        let ref2 = Ref(with: BankAccount(name: "Rhi-2", balance: 100))
+        let ref3 = Ref(with: BankAccount(name: "Rhi-3", balance: 100))
+
+        accounts.append(ref1)
+        accounts.append(ref2)
+        accounts.append(ref3)
+
+        for i in 3 ..< count {
+            accounts.append(Ref(with: BankAccount(name: "Rhi-\(i)", balance: 0)))
+        }
+
+        for _ in 0..<20 {
+            Thread {
+                for _ in 0..<20 {
+                    let rankFrom = Int.random(in: 0 ..< count)
+                    let accountFrom = accounts[rankFrom]
+
+                    _ = writtenRefs?.swap(usingFn: {set in
+                     conj(set, value: accountFrom)
+                    })
+                }
+            }.start()
+        }
+        
+        Thread.sleep(forTimeInterval: 5)
+        for s in (writtenRefs?.deref())! {
+            print("Hashvalue of item is \(s.hashValue)")
+        }
     }
 }
