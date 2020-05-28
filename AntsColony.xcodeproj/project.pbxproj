@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E81C3BE22480131A00C5D5EF /* AtomicReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81C3BE12480131A00C5D5EF /* AtomicReference.swift */; };
+		E81C3BE72480142E00C5D5EF /* AtomicBridges.m in Sources */ = {isa = PBXBuildFile; fileRef = E81C3BE62480142E00C5D5EF /* AtomicBridges.m */; };
 		E8479CC92438653400F0B25F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8479CC82438653400F0B25F /* AppDelegate.swift */; };
 		E8479CCB2438653400F0B25F /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8479CCA2438653400F0B25F /* ViewController.swift */; };
 		E8479CCD2438653600F0B25F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E8479CCC2438653600F0B25F /* Assets.xcassets */; };
@@ -75,6 +77,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E81C3BE12480131A00C5D5EF /* AtomicReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicReference.swift; sourceTree = "<group>"; };
+		E81C3BE42480142E00C5D5EF /* AntsColony-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AntsColony-Bridging-Header.h"; sourceTree = "<group>"; };
+		E81C3BE52480142E00C5D5EF /* AtomicBridges.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AtomicBridges.h; sourceTree = "<group>"; };
+		E81C3BE62480142E00C5D5EF /* AtomicBridges.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AtomicBridges.m; sourceTree = "<group>"; };
 		E8479CC52438653400F0B25F /* AntsColony.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AntsColony.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8479CC82438653400F0B25F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E8479CCA2438653400F0B25F /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -152,6 +158,32 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		E81C3BE3248013E500C5D5EF /* External */ = {
+			isa = PBXGroup;
+			children = (
+				E81C3BE12480131A00C5D5EF /* AtomicReference.swift */,
+				E81C3BE52480142E00C5D5EF /* AtomicBridges.h */,
+				E81C3BE62480142E00C5D5EF /* AtomicBridges.m */,
+				E81C3BE42480142E00C5D5EF /* AntsColony-Bridging-Header.h */,
+			);
+			path = External;
+			sourceTree = "<group>";
+		};
+		E83B74C4248012620044800F /* Concurrency */ = {
+			isa = PBXGroup;
+			children = (
+				E81C3BE3248013E500C5D5EF /* External */,
+				E8F9B6692452D8A900A79DB2 /* Delay.swift */,
+				E8F9B66B2452E0BB00A79DB2 /* DispatchQueue+Utils.swift */,
+				E8F9B66D2452E1CC00A79DB2 /* Promise.swift */,
+				E8F9B66F2452E9ED00A79DB2 /* Future.swift */,
+				E8F9B6712452EBB000A79DB2 /* Atom.swift */,
+				E8F9B6732452F2A900A79DB2 /* Agent.swift */,
+				E8D9F84C2469409C0012F93D /* STM.swift */,
+			);
+			path = Concurrency;
+			sourceTree = "<group>";
+		};
 		E8479CBC2438653400F0B25F = {
 			isa = PBXGroup;
 			children = (
@@ -177,6 +209,7 @@
 		E8479CC72438653400F0B25F /* AntsColony */ = {
 			isa = PBXGroup;
 			children = (
+				E83B74C4248012620044800F /* Concurrency */,
 				E85BCFDF24744D1F006BAA30 /* UI */,
 				E8D9F84924693ED40012F93D /* External */,
 				E8EB965C24666743001D7BBD /* Ants */,
@@ -189,12 +222,6 @@
 				E8479CD22438653600F0B25F /* AntsColony.entitlements */,
 				E8479CE62438654F00F0B25F /* Concurrent.swift */,
 				E8479D11243992AC00F0B25F /* BadRef.swift */,
-				E8F9B6692452D8A900A79DB2 /* Delay.swift */,
-				E8F9B66B2452E0BB00A79DB2 /* DispatchQueue+Utils.swift */,
-				E8F9B66D2452E1CC00A79DB2 /* Promise.swift */,
-				E8F9B66F2452E9ED00A79DB2 /* Future.swift */,
-				E8F9B6712452EBB000A79DB2 /* Atom.swift */,
-				E8F9B6732452F2A900A79DB2 /* Agent.swift */,
 				E8A9C1D2245DE1A100ADABD1 /* Transaction.swift */,
 				E8D9F850246966BD0012F93D /* BankTransaction.swift */,
 			);
@@ -259,7 +286,6 @@
 				E8EB965F246668BA001D7BBD /* World.swift */,
 				E8EB966124666991001D7BBD /* Util.swift */,
 				E8EB96652466D3BE001D7BBD /* Ant.swift */,
-				E8D9F84C2469409C0012F93D /* STM.swift */,
 			);
 			path = Ants;
 			sourceTree = "<group>";
@@ -350,6 +376,7 @@
 				TargetAttributes = {
 					E8479CC42438653400F0B25F = {
 						CreatedOnToolsVersion = 11.2;
+						LastSwiftMigration = 1120;
 					};
 					E8479CD62438653700F0B25F = {
 						CreatedOnToolsVersion = 11.2;
@@ -428,6 +455,7 @@
 			files = (
 				E8A9C1D3245DE1A100ADABD1 /* Transaction.swift in Sources */,
 				E8D9F84F2469447C0012F93D /* AnyEquatable.swift in Sources */,
+				E81C3BE22480131A00C5D5EF /* AtomicReference.swift in Sources */,
 				E8EB9660246668BA001D7BBD /* World.swift in Sources */,
 				E85BCFE324744EDD006BAA30 /* Core.swift in Sources */,
 				E8D9F851246966BD0012F93D /* BankTransaction.swift in Sources */,
@@ -445,6 +473,7 @@
 				E8479CC92438653400F0B25F /* AppDelegate.swift in Sources */,
 				E8F9B66A2452D8A900A79DB2 /* Delay.swift in Sources */,
 				E8EB966224666991001D7BBD /* Util.swift in Sources */,
+				E81C3BE72480142E00C5D5EF /* AtomicBridges.m in Sources */,
 				E8F9B66C2452E0BB00A79DB2 /* DispatchQueue+Utils.swift in Sources */,
 				E8EB965E24666753001D7BBD /* Domain.swift in Sources */,
 			);
@@ -637,6 +666,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = AntsColony/AntsColony.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -653,6 +683,8 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.helpshift.AntsColony;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "AntsColony/Concurrency/External/AntsColony-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -661,6 +693,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = AntsColony/AntsColony.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -677,6 +710,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.helpshift.AntsColony;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "AntsColony/Concurrency/External/AntsColony-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;

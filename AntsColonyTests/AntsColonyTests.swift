@@ -91,17 +91,33 @@ class AntsColonyTests: XCTestCase {
 
     func testAtoms() {
         var counter = Atom<Int>(withValue: 0)
-
-        for _ in 0 ..< 20 {
-            Thread {
-                for _ in 0 ..< 400 {
-                    counter.swap { $0 + 1 }
-                }
-            }.start()
+        measure {
+            label: for _ in 0 ..< 20 {
+                Thread {
+                    for _ in 0 ..< 400 {
+                        counter.swap { $0 + 1 }
+                    }
+                }.start()
+            }
         }
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(counter.deref(), 80000)
+    }
 
-        Thread.sleep(forTimeInterval: 1)
-        XCTAssertEqual(counter.deref(), 8000)
+    func testAtomics() {
+        var counter = Atomic<Int>(withValue: 0)
+
+        measure {
+            for _ in 0 ..< 20 {
+                Thread {
+                    for _ in 0 ..< 400 {
+                        counter.swap { $0 + 1 }
+                    }
+                }.start()
+            }
+        }
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(counter.deref(), 80000)
     }
 
     func testAgents() {
