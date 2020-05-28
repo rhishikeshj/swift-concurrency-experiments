@@ -8,7 +8,7 @@
 
 import Foundation
 
-class Atom<T: Hashable> : Hashable {
+struct Atom<T: Hashable>: Hashable {
     var value: T
     private let lock: UnsafeMutablePointer<pthread_mutex_t>
 
@@ -19,33 +19,40 @@ class Atom<T: Hashable> : Hashable {
         pthread_mutex_init(lock, nil)
     }
 
-    public func swap(usingFn fn: (T) -> T) -> T {
-        // capture the current value
-        let v1 = value
-        // run fn to update the value
-        let v2 = fn(v1)
-
-        // compare to see if someone changed the value
+    public mutating func swap(usingFn fn: (T) -> T) -> T {
         pthread_mutex_lock(lock)
-        if v1 != value {
-            // unlock and try again
-            pthread_mutex_unlock(lock)
-            return swap(usingFn: fn)
-        } else {
-            value = v2
-            pthread_mutex_unlock(lock)
-        }
+        value = fn(value)
+        pthread_mutex_unlock(lock)
         return value
     }
+
+//    public func swap(usingFn fn: (T) -> T) -> T {
+//        // capture the current value
+//        let v1 = value
+//        // run fn to update the value
+//        let v2 = fn(v1)
+//
+//        // compare to see if someone changed the value
+//        pthread_mutex_lock(lock)
+//        if v1 != value {
+//            // unlock and try again
+//            pthread_mutex_unlock(lock)
+//            return swap(usingFn: fn)
+//        } else {
+//            value = v2
+//            pthread_mutex_unlock(lock)
+//        }
+//        return value
+//    }
 
     public func deref() -> T {
         return value
     }
-    
+
     static func == (lhs: Atom<T>, rhs: Atom<T>) -> Bool {
         lhs.deref() == rhs.deref()
     }
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(value)
         hasher.combine(lock)

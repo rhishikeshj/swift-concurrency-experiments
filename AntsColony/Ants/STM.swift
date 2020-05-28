@@ -10,12 +10,14 @@ import Foundation
 
 var currentTransaction = ThreadLocal<Transaction?>(value: Transaction())
 
-let GLOBAL_WRITE_POINT = Atom(withValue: 0)
+var GLOBAL_WRITE_POINT = Atom(withValue: 0)
+var TRANSACTION_ID = Atom(withValue: 0)
 let MAX_HISTORY = 10
 let COMMIT_LOCK: UnsafeMutablePointer<pthread_mutex_t> = UnsafeMutablePointer.allocate(capacity: MemoryLayout<pthread_mutex_t>.size)
 
 // MARK: Define Structs
-public struct Ref : Hashable, Equatable {
+
+public class Ref: Hashable, Equatable, CustomStringConvertible {
     var history: Atom<[History<AnyHashable>]>?
 
     public init(with value: AnyHashable) {
@@ -24,14 +26,16 @@ public struct Ref : Hashable, Equatable {
         history = Atom(withValue: newHistory)
     }
 
-    public func deref() -> AnyHashable? {
-        if let transaction = currentTransaction.inner.value {
+    public var description: String { return "Ref :: History -> \(history)" }
+
+    public func deref() throws -> AnyHashable? {
+        if let _ = currentTransaction.inner.value {
             do {
-                let value = try txRead(tx: transaction, ref: self)
+                let value = try txRead(tx: &currentTransaction.inner.value!, ref: self)
                 return value
             } catch {
                 print("Error in txRead is \(error)")
-                return nil
+                throw STMError.retry
             }
         } else if let h = self.history?.deref() {
             return h[0].value
@@ -40,16 +44,16 @@ public struct Ref : Hashable, Equatable {
     }
 
     public func set(value: AnyHashable) throws -> AnyHashable {
-        guard let currentTransaction = currentTransaction.inner.value else {
+        guard let _ = currentTransaction.inner.value else {
             throw STMError.illegalState(message: "Cannot write outside of a transaction")
         }
-        return txWrite(tx: currentTransaction,
+        return txWrite(tx: &currentTransaction.inner.value!,
                        ref: self,
                        value: value)
     }
 
     public func alter(fn: (AnyHashable?) -> AnyHashable?) throws -> AnyHashable? {
-        if let newVal = fn(self.deref()) {
+        if let newVal = fn(try self.deref()) {
             return try set(value: newVal)
         }
         return nil
@@ -68,7 +72,7 @@ public struct Ref : Hashable, Equatable {
     }
 }
 
-struct History<T: Hashable>: Hashable {
+struct History<T: Hashable>: Hashable, CustomStringConvertible {
     var value: T
     var writePoint: Int
 
@@ -76,19 +80,26 @@ struct History<T: Hashable>: Hashable {
         hasher.combine(value)
         hasher.combine(writePoint)
     }
+
+    public var description: String { return "History :: Value -> \(value) WritePoint -> \(writePoint)" }
 }
 
 public struct Transaction {
-    static let initialize = {
+    static let ensure: Void = {
         pthread_mutex_init(COMMIT_LOCK, nil)
-        currentTransaction.inner.value = nil
-    }
+    }()
 
     var readPoint: Int = GLOBAL_WRITE_POINT.deref()
     var inTxValues: Atom<[Ref: AnyHashable]>? = Atom(withValue: [:])
     var writtenRefs: Atom<Set<Ref>>? = Atom(withValue: Set())
 
-    public static func doSync(fn: () -> Void) {
+    var id: Int
+    init() {
+        id = TRANSACTION_ID.swap(usingFn: { $0 + 1 })
+    }
+
+    public static func doSync(fn: () throws -> Void) {
+        Transaction.ensure
         if currentTransaction.inner.value == nil {
             currentTransaction.inner.value = Transaction()
         }
@@ -97,6 +108,7 @@ public struct Transaction {
 }
 
 // MARK: Transaction utils
+
 func findEntryBeforeOrOn(historyChain: [History<AnyHashable>], readPoint: Int) -> History<AnyHashable>? {
     for h in historyChain {
         if h.writePoint <= readPoint {
@@ -120,23 +132,32 @@ func txRetry() throws {
 }
 
 // MARK: Clojure utils
+
 func assoc(_ map: [Ref: AnyHashable],
            key: Ref, value: AnyHashable) -> [Ref: AnyHashable] {
-    var new = map
-    if new.keys.contains(key) {
-        new.removeValue(forKey: key)
+    var new = map.filter { (k, _) -> Bool in
+        k.hashValue != key.hashValue
+    }
+    new[key] = value
+    return new
+}
+
+func assoc(_ map: [AnyHashable: AnyHashable],
+           key: AnyHashable, value: AnyHashable) -> [AnyHashable: AnyHashable] {
+    var new = map.filter { (k, _) -> Bool in
+        k.hashValue != key.hashValue
     }
     new[key] = value
     return new
 }
 
 func conj(_ set: Set<Ref>, value: Ref) -> Set<Ref> {
-    if !set.contains(value) {
-        var new = set
-        new.insert(value)
-        return new
+    var new = set.filter { (r) -> Bool in
+        r.hashValue != value.hashValue
     }
-    return set
+
+    new.insert(value)
+    return new
 }
 
 func cons<T>(_ arr: [T], value: T) -> [T] {
@@ -154,7 +175,8 @@ func butLast<T>(_ arr: [T], capped: Int) -> [T] {
 }
 
 // MARK: Transaction internal fns
-func txRead(tx: Transaction, ref: Ref) throws -> AnyHashable? {
+
+func txRead(tx: inout Transaction, ref: Ref) throws -> AnyHashable? {
     guard let inTxValues = tx.inTxValues else {
         return nil
     }
@@ -164,7 +186,7 @@ func txRead(tx: Transaction, ref: Ref) throws -> AnyHashable? {
     if let history = ref.history?.deref(),
         let refEntry = findEntryBeforeOrOn(historyChain: history, readPoint: tx.readPoint) {
         let inTxValue = refEntry.value
-        let _ = inTxValues.swap { assoc($0, key: ref, value: inTxValue) }
+        _ = tx.inTxValues?.swap { assoc($0, key: ref, value: inTxValue) }
         return inTxValue
     } else {
         try txRetry()
@@ -172,20 +194,7 @@ func txRead(tx: Transaction, ref: Ref) throws -> AnyHashable? {
     assert(false, "Shouldn't really come here \(#function)")
 }
 
-func txWrite(tx: Transaction, ref: Ref, value: AnyHashable) -> AnyHashable {
-//    if let inTx = tx.inTxValues?.deref() {
-//        for (k,_) in inTx {
-//            print("Item in inTx is \(k.hashValue)")
-//        }
-//    }
-//    print("New item to add to dictionary is \(ref.hashValue)")
-//    if let wr = tx.writtenRefs?.deref() {
-//        for i in wr {
-//            print("Item in written refs is \(i.hashValue)")
-//        }
-//    }
-//    print("New item to add to set is \(ref.hashValue)")
-    
+func txWrite(tx: inout Transaction, ref: Ref, value: AnyHashable) -> AnyHashable {
     _ = tx.inTxValues?.swap(usingFn: { assoc($0, key: ref, value: value) })
     _ = tx.writtenRefs?.swap(usingFn: { conj($0, value: ref) })
     return value
@@ -215,18 +224,17 @@ func txCommit(tx: Transaction) throws {
                 _ = w.history?.swap(usingFn: { cons(butLast($0, capped: MAX_HISTORY), value: newHistory) })
             }
         }
+        print("Transaction succeeded !!")
         _ = GLOBAL_WRITE_POINT.swap(usingFn: { $0 + 1 })
-        currentTransaction.inner.value = nil
         pthread_mutex_unlock(COMMIT_LOCK)
     }
 }
 
-func txRun(tx: Transaction, fn: () -> Void) {
+func txRun(tx: Transaction, fn: () throws -> Void) {
     currentTransaction.inner.value = tx
     do {
-        print("Running the transaction fn")
-        fn()
-        try txCommit(tx: tx)
+        try fn()
+        try txCommit(tx: currentTransaction.inner.value!)
     } catch STMError.retry {
         txRun(tx: Transaction(), fn: fn)
     } catch {
@@ -235,11 +243,86 @@ func txRun(tx: Transaction, fn: () -> Void) {
 }
 
 // MARK: Run transaction
-public func runSTMTransactions() {
-    Transaction.initialize()
-    
+
+public func runSTMTransactionsOnMaps() {
     let count = 10
-    let counter = Atom(withValue: 0)
+    var counter = Atom(withValue: 0)
+    var accounts: [Ref] = []
+
+    let ref1 = Ref(with: ["name": "Rhi-0", "balance": 100] as! [String: AnyHashable])
+    let ref2 = Ref(with: ["name": "Rhi-1", "balance": 100] as! [String: AnyHashable])
+    let ref3 = Ref(with: ["name": "Rhi-2", "balance": 100] as! [String: AnyHashable])
+
+    accounts.append(ref1)
+    accounts.append(ref2)
+    accounts.append(ref3)
+
+    for i in 3 ..< count {
+        accounts.append(Ref(with: ["name": "Rhi-\(i)", "balance": 0] as! [String: AnyHashable]))
+    }
+
+    Thread {
+        while true {
+            Thread.sleep(forTimeInterval: 0.1)
+            Transaction.doSync {
+                var sum = 0
+                for i in 0 ..< count {
+                    let account = try accounts[i].deref() as! [String: AnyHashable]
+                    let bal = account["balance"] as! Int
+                    if bal > 0 {
+                        print("Account \(i) has \(bal)")
+                    }
+                    sum += bal
+                }
+
+                if sum != 300 {
+                    assert(false, "This is not working :: \(sum)")
+                    return
+                } else {
+                    print("Sum is correct ! ")
+                }
+            }
+        }
+    }.start()
+
+    for _ in 0 ..< 10 {
+        Thread {
+            for _ in 0 ..< 100 {
+                let rankFrom = Int.random(in: 0 ..< count)
+                var rankTo = Int.random(in: 0 ..< count)
+                if rankTo == rankFrom {
+                    rankTo = Int.random(in: 0 ..< count)
+                }
+                Transaction.doSync {
+                    let accountFrom = try accounts[rankFrom].deref() as! [String: AnyHashable]
+                    let accountTo = try accounts[rankTo].deref() as! [String: AnyHashable]
+
+                    if accountFrom["balance"] as! Int != 0 {
+                        print("Transferring from \(rankFrom) to \(rankTo) : ID \(counter.swap { old in old + 1 })")
+                        let balance = accountFrom["balance"] as! Int
+                        do {
+                            let aFrom = assoc(accountFrom, key: "balance", value: 0)
+                            let aTo = assoc(accountTo,
+                                            key: "balance",
+                                            value: (accountTo["balance"] as! Int) + balance)
+                            _ = try accounts[rankFrom].set(value: aFrom)
+                            _ = try accounts[rankTo].set(value: aTo)
+                        } catch {
+                            assert(false, "Error in setting value in transaction \(error)")
+                        }
+                    }
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+        }.start()
+    }
+
+    Thread.sleep(forTimeInterval: 2000)
+}
+
+public func runSTMTransactions() {
+    let count = 10
+    var counter = Atom(withValue: 0)
     var accounts: [Ref] = []
 
     let ref1 = Ref(with: BankAccount(name: "Rhi-1", balance: 100))
@@ -256,16 +339,15 @@ public func runSTMTransactions() {
 
     for _ in 0 ..< 100 {
         Thread {
-            Transaction.initialize()
             for _ in 0 ..< 1000 {
                 let rankFrom = Int.random(in: 0 ..< count)
                 let rankTo = Int.random(in: 0 ..< count)
-                let accountFrom = accounts[rankFrom].deref()?.base as! BankAccount
-                let accountTo = accounts[rankTo].deref()?.base as! BankAccount
+                Transaction.doSync {
+                    let accountFrom = try accounts[rankFrom].deref()?.base as! BankAccount
+                    let accountTo = try accounts[rankTo].deref()?.base as! BankAccount
 
-                if rankFrom != rankTo, accountFrom.balance != 0 {
-                    print("Transferring from \(rankFrom) to \(rankTo) : ID \(counter.swap { old in old + 1 })")
-                    Transaction.doSync {
+                    if rankFrom != rankTo, accountFrom.balance != 0 {
+                        print("Transferring from \(rankFrom) to \(rankTo) : ID \(counter.swap { old in old + 1 })")
                         let balance = accountFrom.balance
                         do {
                             let aFrom = BankAccount.withdraw(account: accountFrom, amount: balance)
@@ -280,19 +362,19 @@ public func runSTMTransactions() {
             }
         }.start()
     }
-    
-    //Thread.sleep(forTimeInterval: 20)
+
+    // Thread.sleep(forTimeInterval: 20)
     while true {
         Thread.sleep(forTimeInterval: 1)
         Transaction.doSync {
-            let sum = accounts.reduce(0) { acc, el in
-                let val = (el.deref()?.base as! BankAccount).balance
+            let sum = try accounts.reduce(0) { acc, el in
+                let val = (try el.deref() as! BankAccount).balance
                 return acc + val
             }
             if sum != 300 {
                 print("This is not working :: \(sum)")
                 for acc in accounts {
-                    print("Value is \(acc.deref()?.base)")
+                    print("Value is \(try acc.deref())")
                 }
                 return
             }

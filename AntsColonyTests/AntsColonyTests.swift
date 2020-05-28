@@ -90,12 +90,12 @@ class AntsColonyTests: XCTestCase {
     }
 
     func testAtoms() {
-        let counter = Atom<Int>(withValue: 0)
+        var counter = Atom<Int>(withValue: 0)
 
         for _ in 0 ..< 20 {
             Thread {
                 for _ in 0 ..< 400 {
-                    counter.swap { old in old + 1 }
+                    counter.swap { $0 + 1 }
                 }
             }.start()
         }
@@ -155,13 +155,24 @@ class AntsColonyTests: XCTestCase {
     }
 
     func testSTMTransactions() {
-        runSTMTransactions()
+        // runSTMTransactions()
+        runSTMTransactionsOnMaps()
     }
-    
-    func testWrittenRefs () {
-        Transaction.initialize()
-        
-        let writtenRefs: Atom<Set<Ref>>? = Atom(withValue: Set())
+
+    func testAssoc() {
+        var someRef = Ref(with: ":a")
+        let map1 = [Ref(with: "a"): 1,
+                    Ref(with: "b"): 2,
+                    Ref(with: "c"): 3,
+                    someRef: 42]
+        print(assoc(map1, key: Ref(with: "a"), value: 3))
+        try? someRef.set(value: ":b")
+        print(map1[someRef])
+        print(try? someRef.deref())
+    }
+
+    func testWrittenRefs() {
+        var writtenRefs: Atom<Set<Ref>>? = Atom(withValue: Set())
 
         let count = 10
         var accounts: [Ref] = []
@@ -178,19 +189,19 @@ class AntsColonyTests: XCTestCase {
             accounts.append(Ref(with: BankAccount(name: "Rhi-\(i)", balance: 0)))
         }
 
-        for _ in 0..<20 {
+        for _ in 0 ..< 20 {
             Thread {
-                for _ in 0..<20 {
+                for _ in 0 ..< 20 {
                     let rankFrom = Int.random(in: 0 ..< count)
                     let accountFrom = accounts[rankFrom]
 
-                    _ = writtenRefs?.swap(usingFn: {set in
-                     conj(set, value: accountFrom)
+                    _ = writtenRefs?.swap(usingFn: { set in
+                        conj(set, value: accountFrom)
                     })
                 }
             }.start()
         }
-        
+
         Thread.sleep(forTimeInterval: 5)
         for s in (writtenRefs?.deref())! {
             print("Hashvalue of item is \(s.hashValue)")

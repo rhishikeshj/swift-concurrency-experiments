@@ -82,7 +82,7 @@ func runTransactions() {
         accounts.append(Locker(withValue: 0))
     }
 
-    let counter = Atom(withValue: 0)
+    var counter = Atom(withValue: 0)
 
     for _ in 1 ... 1 {
         Thread {

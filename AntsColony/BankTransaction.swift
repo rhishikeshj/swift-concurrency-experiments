@@ -8,7 +8,7 @@
 
 import Foundation
 
-public struct BankAccount : Hashable {
+public struct BankAccount: Hashable {
     var name: String
     var balance: Int
 
@@ -16,12 +16,12 @@ public struct BankAccount : Hashable {
         hasher.combine(name)
         hasher.combine(balance)
     }
-    
-    public static func deposit(account:BankAccount, amount:Int) -> BankAccount {
+
+    public static func deposit(account: BankAccount, amount: Int) -> BankAccount {
         return BankAccount(name: account.name, balance: account.balance + amount)
     }
 
-    public static func withdraw(account:BankAccount, amount:Int) -> BankAccount {
+    public static func withdraw(account: BankAccount, amount: Int) -> BankAccount {
         if account.balance >= amount {
             return BankAccount(name: account.name, balance: account.balance - amount)
         }
